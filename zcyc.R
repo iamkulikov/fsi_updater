@@ -236,7 +236,7 @@ get_hist_gyields <- function(start_date = NULL,
 
 # Example usage: Get historical yields for multiple durations
 
-# historical_yields <- get_hist_gyields("2025-02-23", "2025-02-26", c(0.25, 1, 3, 5), online = F)
+# historical_yields <- get_hist_gyields("2025-02-23", "2025-02-26", c(0.25, 1, 3, 5), online = T)
 # print(historical_yields)
 
 # historical_yields <- get_hist_gyields()

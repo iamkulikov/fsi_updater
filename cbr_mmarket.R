@@ -229,7 +229,7 @@ get_key_rate <- function(start_date = NULL, end_date = Sys.Date()) {
 
 # Function to get historical and current MIACR rate from the CBR web service
 
-get_miacr <- function(start_date = NULL, end_date = Sys.Date(), duration = 1) {
+get_miacr <- function(start_date = NULL, end_date = Sys.Date(), duration = c(1,7)) {
   
   # Ensure duration is treated as a vector
   if (!is.vector(duration)) {
@@ -304,7 +304,7 @@ get_miacr <- function(start_date = NULL, end_date = Sys.Date(), duration = 1) {
   if (is.null(response) || status_code(response) != 200) {
     return(all_dates %>%
              expand_grid(duration = duration) %>%
-             mutate(rate = NA_real_))
+             mutate(value = NA_real_))
   }
   
   # Parse XML response with error handling
@@ -316,7 +316,7 @@ get_miacr <- function(start_date = NULL, end_date = Sys.Date(), duration = 1) {
   if (is.null(xml_content)) {
     return(all_dates %>%
              expand_grid(duration = duration) %>%
-             mutate(rate = NA_real_))
+             mutate(value = NA_real_))
   }
   
   xml_parsed <- tryCatch(
@@ -327,7 +327,7 @@ get_miacr <- function(start_date = NULL, end_date = Sys.Date(), duration = 1) {
   if (is.null(xml_parsed)) {
     return(all_dates %>%
              expand_grid(duration = duration) %>%
-             mutate(rate = NA_real_))
+             mutate(value = NA_real_))
   }
   
   # Extract <MKR> nodes
@@ -337,7 +337,7 @@ get_miacr <- function(start_date = NULL, end_date = Sys.Date(), duration = 1) {
   if (length(miacr_nodes) == 0) {
     return(all_dates %>%
              expand_grid(duration = duration) %>%
-             mutate(rate = NA_real_))
+             mutate(value = NA_real_))
   }
   
   # Filter only MIACR (p1 == 3) nodes before extracting data
@@ -349,7 +349,7 @@ get_miacr <- function(start_date = NULL, end_date = Sys.Date(), duration = 1) {
   if (length(miacr_filtered_nodes) == 0) {
     return(all_dates %>%
              expand_grid(duration = duration) %>%
-             mutate(rate = NA_real_))
+             mutate(value = NA_real_))
   }
   
   # Extract base data (only for MIACR RUB)

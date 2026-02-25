@@ -135,8 +135,8 @@ get_cbrfx_rates <- function(currency_names = c("US Dollar", "Euro", "Юань"),
 
 
 # Example usage
- # get_cbrfx_rates(c("US Dollar", "Euro", "Юань"), "2025-01-01", "2025-03-01")
- # get_cbrfx_rates()
+ # get_cbrfx_rates(c("US Dollar", "Euro", "Юань"), "2025-04-30", "2025-05-05")
+ # get_cbrfx_rates() |> tail
 
 
 # Function to fetch historic market exchange rates from MOEX API
@@ -240,7 +240,7 @@ get_hist_fx_rates <- function(currencies = c("USD", "EUR", "CNY"), start_date = 
   # Ensure all dates and currencies are present, filling missing values with NA
   final_df <- full_join(all_dates, final_df, by = c("date", "currency"))
   
-  return(final_df)
+  return(as_tibble(final_df))
 }
 
 # Example usage

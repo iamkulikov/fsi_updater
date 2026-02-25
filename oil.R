@@ -1,14 +1,17 @@
 # Load required libraries
 library(httr)
 library(dplyr)
+library(tidyr)
 library(tibble)
+library(fredr)
+library(purrr)
 
 # Function to fetch the latest Urals and Brent crude oil bid prices from the SSE feed
 
 get_current_oil_prices <- function() {
   
   # Define the URL of the SSE feed providing oil prices
-  url <- "https://jq.profinance.ru/html/htmlquotes/qsse?msg=1;SID=jOkqGS60;T=1740581573793"
+  url <- "https://jq.profinance.ru/html/htmlquotes/qsse?msg=1;SID=gV00jevN;T=1741616757672"
   
   # Fetch the data from the SSE feed with headers
   response <- tryCatch(GET(url, add_headers(
@@ -69,4 +72,97 @@ get_current_oil_prices <- function() {
 
 # Example usage
 # oil_prices <- get_current_oil_prices()
+# print(oil_prices)
+
+
+# Function to get the historic oil prices from the FRED API (2 days lag)
+
+get_hist_oil_prices <- function(
+    oil_names  = c("brent", "wti"),
+    start_date = NULL,
+    end_date   = Sys.Date(),
+    key_file   = "fred_key.txt"
+) {
+  
+  # read API key from the disk
+  key <- tryCatch(
+    {
+      lines <- readLines(key_file, warn = FALSE)
+      trimws(lines[1])
+    },
+    error = function(e) NA_character_
+  )
+  if (is.na(key) || nchar(key) == 0) {
+    stop("Could not read FRED API key from '", key_file, "'.",
+         " Please create that file and put your key on the first line.")
+  }
+  fredr_set_key(key)
+  
+  # map user‑friendly names → FRED series IDs
+  lookup <- tibble(
+    oil        = c("brent", "urals", "wti"),
+    series_id  = c("DCOILBRENTEU", "DCOILRUSM", "DCOILWTICO")
+  )
+  
+  # validate requested oils
+  oil_names <- unique(oil_names)
+  invalid   <- setdiff(oil_names, lookup$oil)
+  if (length(invalid) > 0) {
+    stop("Unknown oil name(s): ", paste(invalid, collapse = ", "))
+  }
+  sel <- lookup %>% filter(oil %in% oil_names)
+  
+  # parse end_date
+  end_date <- tryCatch(as.Date(end_date), error = function(e) NA)
+  if (is.na(end_date)) stop("Invalid end_date format. Use 'YYYY-MM-DD'.")
+  
+  # default start_date = end_date − 14 days
+  if (is.null(start_date)) {
+    start_date <- end_date - 14
+  } else {
+    start_date <- tryCatch(as.Date(start_date), error = function(e) NA)
+  }
+  if (is.na(start_date)) stop("Invalid start_date format. Use 'YYYY-MM-DD'.")
+  if (start_date > end_date) stop("start_date must be ≤ end_date.")
+  
+  # fetch each series via fredr
+  prices_list <- purrr::map2_dfr(
+    sel$series_id, sel$oil,
+    ~ {
+      df <- tryCatch(
+        fredr(
+          series_id       = .x,
+          observation_start = start_date,
+          observation_end   = end_date
+        ),
+        error = function(e) NULL
+      )
+      if (is.null(df) || nrow(df) == 0) {
+        return(tibble(date = seq(start_date, end_date, by = "days"),
+                      oil   = .y,
+                      price = NA_real_))
+      }
+      df %>%
+        transmute(
+          date  = as.Date(date),
+          oil   = .y,
+          price = value
+        )
+    }
+  )
+  
+  # ensure full date × oil grid, filling missing with NA
+  full_grid <- expand_grid(
+    date = seq(start_date, end_date, by = "days"),
+    oil  = oil_names
+  )
+  
+  prices_list %>%
+    right_join(full_grid, by = c("date", "oil")) %>%
+    arrange(date, oil) %>%
+    as_tibble()
+}
+
+# Example usage
+# oil_prices <- get_hist_oil_prices()
 # print(oil_prices)

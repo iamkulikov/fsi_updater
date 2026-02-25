@@ -23,7 +23,7 @@ source("cbr_mmarket.R")
 # Default tickers list
 default_tickers <- c("SBER", "SBERP", "T", "MOEX", "VTBR", "CBOM", "QIWI",
                      "BSPB", "SFIN", "SPBE", "RENI", "FTRE", "PSBR", "AFKS",
-                     "VZRZ", "MMBM", "ROSB", "LEAS", "MBNK", "ZAYM", "SVCB")
+                     "VZRZ", "MMBM", "ROSB", "LEAS", "MBNK", "ZAYM", "SVCB", "DOMRF")
 
 # Default indicator list
 indicators <- c(
@@ -71,7 +71,7 @@ server <- function(input, output, session) {
       Price = NA_real_,
       Time = NA_character_,
       ShortName = NA_character_,
-      SecName = NA_character_,
+      SecName = NA_character_
     )
   )
   
@@ -121,7 +121,7 @@ server <- function(input, output, session) {
   
   # Реактивные данные для второй вкладки
   
-  dates <- as.character(seq(Sys.Date() - 3, Sys.Date(), by = "day"))
+  dates <- as.character(seq(Sys.Date() - 6, Sys.Date(), by = "day"))
   
   # Изначально создаем пустую таблицу
   initial_data <- tibble(Indicator = indicators)
@@ -139,7 +139,8 @@ server <- function(input, output, session) {
     data_values(update_data)
     
     # Оптимизированные запросы к API
-    oil_prices <- get_current_oil_prices() %>% mutate(date_chr = as.character(date))
+    # oil_hist_prices <- get_hist_oil_prices() %>% mutate(date_chr = as.character(date))
+    oil_current_prices <- get_current_oil_prices() %>% mutate(date_chr = as.character(date))
     fx_hist_rates <- get_hist_fx_rates(c("USD", "EUR", "CNY"), min(dates), max(dates)) %>% mutate(date_chr = as.character(date))
     fx_current_rates <- get_current_fx_rates(c("USD", "EUR", "CNY")) %>% mutate(date_chr = as.character(date))
     cbr_fx_rates <- get_cbrfx_rates(c("US Dollar", "Euro", "Юань"), min(dates), max(dates)) %>% mutate(date_chr = as.character(date))
@@ -157,9 +158,9 @@ server <- function(input, output, session) {
     for (dat in dates) {
       
       update_data[[dat]] <- case_when(
-        update_data$Indicator == "Urals oil price" & dat == as.character(Sys.Date()) ~ {oil_prices %>% filter(oil == "urals") %>% summarise(price = if_else(n() > 0, first(price), NA_real_)) %>% pull(price)},
+        update_data$Indicator == "Urals oil price" & dat == as.character(Sys.Date()) ~ {oil_current_prices %>% filter(oil == "urals") %>% summarise(price = if_else(n() > 0, first(price), NA_real_)) %>% pull(price)},
         update_data$Indicator == "Urals oil price" ~ get_urals_cbonds(dat, dat)$value,
-        update_data$Indicator == "Brent oil price" & dat == as.character(Sys.Date()) ~ {oil_prices %>% filter(oil == "brent") %>% summarise(price = if_else(n() > 0, first(price), NA_real_)) %>% pull(price)},
+        update_data$Indicator == "Brent oil price" & dat == as.character(Sys.Date()) ~ {oil_current_prices %>% filter(oil == "brent") %>% summarise(price = if_else(n() > 0, first(price), NA_real_)) %>% pull(price)},
         update_data$Indicator == "Brent oil price" ~ get_brent_cbonds(dat, dat)$value,
         update_data$Indicator == "Natural gas (TTF, Netherlands)" ~ get_ttfgas_cbonds(dat, dat)$value,
         update_data$Indicator == "MOEX" & dat == as.character(Sys.Date()) ~ {moex_current_index_data %>% filter(indicator == "IMOEX", date_chr == dat) %>% summarise(value = if_else(n() > 0, first(value), NA_real_)) %>% pull(value)},
@@ -169,9 +170,9 @@ server <- function(input, output, session) {
         update_data$Indicator == "RGBI" & dat == as.character(Sys.Date()) ~ {moex_current_index_data %>% filter(indicator == "RGBI", date_chr == dat) %>% summarise(value = if_else(n() > 0, first(value), NA_real_)) %>% pull(value)},
         update_data$Indicator == "RGBI" ~ {moex_hist_index_data %>% filter(indicator == "RGBI", date_chr == dat) %>% pull(value)},
         update_data$Indicator == "OFZZC 3m"& dat == as.character(Sys.Date()) ~ {gyields_latest %>% filter(duration == 0.25) %>% summarise(yield = if_else(n() > 0, first(yield), NA_real_)) %>% pull(yield)},
-        update_data$Indicator == "OFZZC 3m" ~ {gyields %>% filter(duration == 0.25) %>% summarise(yield = if_else(n() > 0, first(yield), NA_real_)) %>% pull(yield)},
+        update_data$Indicator == "OFZZC 3m" ~ {gyields %>% filter(duration == 0.25, date_chr == dat) %>% summarise(yield = if_else(n() > 0, first(yield), NA_real_)) %>% pull(yield)},
         update_data$Indicator == "OFZZC 5y" & dat == as.character(Sys.Date()) ~ {gyields_latest %>% filter(duration == 5) %>% summarise(yield = if_else(n() > 0, first(yield), NA_real_)) %>% pull(yield)},
-        update_data$Indicator == "OFZZC 5y" ~ {gyields %>% filter(duration == 5) %>% summarise(yield = if_else(n() > 0, first(yield), NA_real_)) %>% pull(yield)},
+        update_data$Indicator == "OFZZC 5y" ~ {gyields %>% filter(duration == 5, date_chr == dat) %>% summarise(yield = if_else(n() > 0, first(yield), NA_real_)) %>% pull(yield)},
         update_data$Indicator == "Key rate" ~ key_rate$value[match(dat, key_rate$date)],
         update_data$Indicator == "RUONIA ON" ~ ruonia_rates$value[match(dat, ruonia_rates$date)],
         update_data$Indicator == "MIACR 1d" ~ {miacr_rates %>% filter(duration == 1, date_chr == dat) %>% pull(value)},
@@ -194,8 +195,8 @@ server <- function(input, output, session) {
     }
     
     update_data[["Time"]] <- case_when(
-      update_data$Indicator == "Urals oil price" ~ {oil_prices %>% filter(oil == "urals") %>% summarise(time = if_else(n() > 0, first(time), NA)) %>% pull(time)},
-      update_data$Indicator == "Brent oil price" ~ {oil_prices %>% filter(oil == "brent") %>% summarise(time = if_else(n() > 0, first(time), NA)) %>% pull(time)},
+      update_data$Indicator == "Urals oil price" ~ {oil_current_prices %>% filter(oil == "urals") %>% summarise(time = if_else(n() > 0, first(time), NA)) %>% pull(time)},
+      update_data$Indicator == "Brent oil price" ~ {oil_current_prices %>% filter(oil == "brent") %>% summarise(time = if_else(n() > 0, first(time), NA)) %>% pull(time)},
       update_data$Indicator == "USDRUB TOD" ~ {fx_current_rates %>% filter(currency == "USD", date_chr == dat) %>% summarise(time = if_else(n() > 0, first(time), NA)) %>% pull(time)},
       update_data$Indicator == "EURRUB TOD" ~ {fx_current_rates %>% filter(currency == "EUR", date_chr == dat) %>% summarise(time = if_else(n() > 0, first(time), NA)) %>% pull(time)},
       update_data$Indicator == "CNYRUB TOD" ~ {fx_current_rates %>% filter(currency == "CNY", date_chr == dat) %>% summarise(time = if_else(n() > 0, first(time), NA)) %>% pull(time)},
